@@ -190,16 +190,25 @@ def generic_edge_bfs(G, source=None, edges=None):
         is chosen arbitrarily and repeatedly until all edges from each node in
         the graph are searched.
 
-    orientation : None | 'original' | 'reverse' | 'ignore' (default: None)
-        For directed graphs and directed multigraphs, edge traversals need not
-        respect the original orientation of the edges.
-        When set to 'reverse' every edge is traversed in the reverse direction.
-        When set to 'ignore', every edge is treated as undirected.
-        When set to 'original', every edge is treated as directed.
-        In all three cases, the yielded edge tuples add a last entry to
-        indicate the direction in which that edge was traversed.
-        If orientation is None, the yielded edge has no direction indicated.
-        The direction is respected, but not reported.
+    edges : callable, None
+        This allows the user to make their own function to traverse over the
+        orientation of the edges. This is similar to the orientation argument
+        of edge_bfs, only the users more control. A user can implement a
+        reverse search, forward search, or only iterate over nodes that have
+        certain conditions they meet. The user must take care when writing
+        their callback function, so I'm including examples in the notes that
+        will implement the original reverse and forward searches.
+
+        The function must take a node as an argument, and return an iterator
+        over tuples containing an edge and the child of that edge:
+
+        def edges_from(node):
+            for e in G.edges(node):
+                yield e, e[1]
+
+        The pairing of the edge and child indicates which kind of direction the
+        traverses will be in. See the notes for an example of a reverse
+        direction.
 
     Yields
     ------
@@ -210,31 +219,33 @@ def generic_edge_bfs(G, source=None, edges=None):
         For multigraphs, `edge` is of the form `(u, v, key)`, where `key` is
         the key of the edge. When the graph is directed, then `u` and `v`
         are always in the order of the actual directed edge.
-        If orientation is not None then the edge tuple is extended to include
-        the direction of traversal ('forward' or 'reverse') on that edge.
 
     Examples
     --------
-    >>> nodes = [0, 1, 2, 3]
-    >>> edges = [(0, 1), (1, 0), (1, 0), (2, 0), (2, 1), (3, 1)]
+>>> nodes = [0, 1, 2, 3]
+>>> edges = [(0, 1), (1, 0), (1, 0), (2, 0), (2, 1), (3, 1)]
 
-    >>> list(nx.edge_bfs(nx.Graph(edges), nodes))
-    [(0, 1), (0, 2), (1, 2), (1, 3)]
+>>> list(generic_edge_bfs(nx.Graph(edges), nodes))
+[(0, 1), (0, 2), (1, 2), (1, 3)]
 
-    >>> list(nx.edge_bfs(nx.DiGraph(edges), nodes))
-    [(0, 1), (1, 0), (2, 0), (2, 1), (3, 1)]
+>>> list(generic_edge_bfs(nx.DiGraph(edges), nodes))
+[(0, 1), (1, 0), (2, 0), (2, 1), (3, 1)]
 
-    >>> list(nx.edge_bfs(nx.MultiGraph(edges), nodes))
-    [(0, 1, 0), (0, 1, 1), (0, 1, 2), (0, 2, 0), (1, 2, 0), (1, 3, 0)]
+>>> list(generic_edge_bfs(nx.MultiGraph(edges), nodes))
+[(0, 1, 0), (0, 1, 1), (0, 1, 2), (0, 2, 0), (1, 2, 0), (1, 3, 0)]
 
-    >>> list(nx.edge_bfs(nx.MultiDiGraph(edges), nodes))
-    [(0, 1, 0), (1, 0, 0), (1, 0, 1), (2, 0, 0), (2, 1, 0), (3, 1, 0)]
+>>> list(generic_edge_bfs(nx.MultiDiGraph(edges), nodes))
+[(0, 1, 0), (1, 0, 0), (1, 0, 1), (2, 0, 0), (2, 1, 0), (3, 1, 0)]
 
-    >>> list(nx.edge_bfs(nx.DiGraph(edges), nodes, orientation="ignore"))
-    [(0, 1, 'forward'), (1, 0, 'reverse'), (2, 0, 'reverse'), (2, 1, 'reverse'), (3, 1, 'reverse')]
+>>> graph = nx.MultiDiGraph(edges)
+>>> def edges_from(node):
+...     kwds = {"data": False, "keys": True}
+...     for e in graph.in_edges(node, **kwds):
+...         yield e, e[0]
+...
 
-    >>> list(nx.edge_bfs(nx.MultiDiGraph(edges), nodes, orientation="ignore"))
-    [(0, 1, 0, 'forward'), (1, 0, 0, 'reverse'), (1, 0, 1, 'reverse'), (2, 0, 0, 'reverse'), (2, 1, 0, 'reverse'), (3, 1, 0, 'reverse')]
+>>> list(generic_edge_bfs(nx.MultiDiGraph(edges), nodes, edges=edges_from))
+[(1, 0, 0), (1, 0, 1), (2, 0, 0), (0, 1, 0), (2, 1, 0), (3, 1, 0)]
 
     Notes
     -----
@@ -253,6 +264,25 @@ def generic_edge_bfs(G, source=None, edges=None):
     'bfs_edges' only report those traversed by a node-based BFS. Yet another
     description is that 'bfs_edges' reports the edges traversed during BFS
     while 'edge_bfs' reports all edges in the order they are explored.
+
+    A example function for reverse searching over a directed graph:
+
+    def edges_from(node):
+        kwds = {"data": False, "keys": True}
+        for e in G.in_edges(node, **kwds):
+            yield e, e[0]
+
+    Another example function for forward searching, taking only nodes with
+    labels that are odd numbers:
+
+    def edges_from(node):
+        for e in G.edges(node):
+            if e[1]%2 == 1:
+                yield e, e[1]
+
+    See networkx/networkx/algorithms/traversal/tests/test_generic.py for more
+    examples.
+
 
     See Also
     --------
